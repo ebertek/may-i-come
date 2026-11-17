@@ -1,6 +1,7 @@
 # Merge these sections into your Home Assistant configuration.yaml.
 # If you already have input_select: or rest_command:, merge their CONTENTS;
 # do not define the top-level keys twice.
+# input_boolean.guest_mode is an existing helper; do NOT recreate it here.
 
 input_select:
   may_i_come:
