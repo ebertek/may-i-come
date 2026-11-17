@@ -65,9 +65,20 @@ If your existing Traefik network has another name, update `networks.traefik` (or
 
 ## 3. Add Home Assistant helper and publisher
 
-Copy/merge `home-assistant/configuration.yaml` into Home Assistant's `configuration.yaml` and `home-assistant/automation.yaml` into `automations.yaml`. If you already have `input_select:` or `rest_command:` sections, merge their entries under the existing sections.
+Copy/merge `home-assistant/configuration.yaml` into Home Assistant's `configuration.yaml` and `home-assistant/automation.yaml` into `automations.yaml`. If you already have `input_select:` or `rest_command:` sections, merge their entries under the existing sections. Do not define the same helper twice if you already created `input_select.may_i_come` in the UI. For the existing `input_boolean.guest_mode`, no additional helper configuration is required.
 
-In Home Assistant's `secrets.yaml`, add a secret with the **entire Authorization header value**, using the **same** token as step 2:
+For the Pleiades deployment, Home Assistant stores its configuration under `/volume2/docker/hass/config`. Provision the optional update token in the host directory mounted into `visit` (the Node.js user needs read access):
+
+```bash
+sudo install -d -o root -g 1000 -m 0750 /volume2/docker/visit
+sudo sh -c 'umask 027; test -e /volume2/docker/visit/update-token.txt || openssl rand -hex 32 > /volume2/docker/visit/update-token.txt'
+sudo chown root:1000 /volume2/docker/visit/update-token.txt
+sudo chmod 0640 /volume2/docker/visit/update-token.txt
+```
+
+This is a token for the visitor website, **not** a Home Assistant API token. The site works without it (with **NO** and disabled writes), and picks it up when added without a container restart. Do not put the token in Git, Compose environment variables, or this README.
+
+In Home Assistant's `/volume2/docker/hass/config/secrets.yaml`, add a secret with the **entire Authorization header value**, using the **same** token as in `/volume2/docker/visit/update-token.txt`:
 
 ```yaml
 may_i_come_authorization_header: "Bearer PUT_THE_64_CHARACTER_HEX_TOKEN_HERE"
