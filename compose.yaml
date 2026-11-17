@@ -8,7 +8,6 @@ services:
       STATUS_TTL_SECONDS: "180"
       UPDATE_TOKEN_FILE: /run/visit/update-token.txt
     volumes:
-      - may-i-come-data:/data
       - ./secrets:/run/visit:ro
     networks:
       - traefik
@@ -20,9 +19,6 @@ services:
       - traefik.http.services.may-i-come.loadbalancer.server.port=3000
       # Uncomment/adjust if Traefik requires an explicit cert resolver:
       # - traefik.http.routers.may-i-come.tls.certresolver=your-resolver
-
-volumes:
-  may-i-come-data:
 
 networks:
   traefik:

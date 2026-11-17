@@ -54,7 +54,7 @@ async function post(origin, value, bearer = token, contentType = 'application/js
   });
 }
 
-test('production status is safe before first update, accepts only signed fixed choices, and persists', async () => {
+test('production status is safe before first update and accepts only signed fixed choices', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'may-i-come-'));
   const file = join(dir, 'status.json');
   const instance = await launch({ DATA_FILE: file });
@@ -78,7 +78,7 @@ test('production status is safe before first update, accepts only signed fixed c
     assert.equal(state.status, 'Ask first');
     assert.ok(Date.parse(state.updatedAt) > 0);
     assert.equal(state.connected, true);
-    assert.equal(JSON.parse(await readFile(file, 'utf8')).status, 'Ask first');
+    await assert.rejects(readFile(file, 'utf8'), { code: 'ENOENT' }, 'stateless app must not write a status file');
 
     const traversal = await fetch(instance.origin + '/%2e%2e/server.js');
     assert.equal(traversal.status, 404);
@@ -91,8 +91,9 @@ test('production status is safe before first update, accepts only signed fixed c
   const restart = await launch({ DATA_FILE: file });
   try {
     const data = await (await fetch(restart.origin + '/api/status')).json();
-    assert.equal(data.status, 'Ask first');
-    assert.equal(data.connected, true);
+    assert.equal(data.status, 'Absolutely not');
+    assert.equal(data.connected, false);
+    assert.equal(data.updatedAt, null);
   } finally {
     await stop(restart);
     await rm(dir, { recursive: true, force: true });
@@ -113,7 +114,7 @@ test('demo lets visitors preview without enabling updates', async () => {
 });
 
 
-test('offline heartbeat expiry overrides permissive persisted status, including restart', async () => {
+test('offline heartbeat expiry overrides permissive in-memory status, including restart', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'may-i-come-expiry-'));
   const file = join(dir, 'status.json');
   let app = await launch({ DATA_FILE: file, STATUS_TTL_SECONDS: '0.3' });
@@ -154,7 +155,7 @@ test('offline heartbeat expiry overrides permissive persisted status, including 
   }
 });
 
-test('legacy saved state without heartbeat fails closed', async () => {
+test('legacy saved status files are ignored and start fail-closed', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'may-i-come-legacy-'));
   const file = join(dir, 'status.json');
   const { writeFile } = await import('node:fs/promises');
@@ -190,6 +191,18 @@ test('missing or unreadable update token keeps website healthy and verdict close
     await writeFile(secretFile, token);
     assert.equal((await post(app.origin, { status: 'Visitors welcome' })).status, 200);
     assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Visitors welcome');
+
+    // Changing the signing key cannot restore a previous YES decision.
+    await writeFile(secretFile, 'b'.repeat(64));
+    const rotated = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(rotated.status, 'Absolutely not');
+    assert.equal(rotated.connected, false);
+    await writeFile(secretFile, token);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Absolutely not',
+      'rotating a token back must not revive an old approval');
+    await writeFile(secretFile, 'b'.repeat(64));
+    assert.equal((await post(app.origin, { status: 'Ask first' })).status, 401);
+    assert.equal((await post(app.origin, { status: 'Ask first' }, 'b'.repeat(64))).status, 200);
 
     await unlink(secretFile);
     const unavailable = await (await fetch(app.origin + '/api/status')).json();

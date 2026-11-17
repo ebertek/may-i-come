@@ -1,13 +1,11 @@
 FROM node:22-alpine
 
 ENV NODE_ENV=production \
-    PORT=3000 \
-    DATA_FILE=/data/status.json
+    PORT=3000
 
 WORKDIR /app
 COPY --chown=node:node package.json server.js ./
 COPY --chown=node:node public/ ./public/
-RUN mkdir -p /data && chown node:node /data
 
 USER node
 EXPOSE 3000
