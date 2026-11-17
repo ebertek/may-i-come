@@ -98,7 +98,7 @@ async function main() {
       // A missing or rotated credential cannot reactivate an old approval.
       const matchingToken = Boolean(token) &&
         current.tokenHash === createHash('sha256').update(token).digest('hex');
-      if (!token) current = { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null, tokenHash: null };
+      if (!matchingToken) current = { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null, tokenHash: null };
       const lastSeenMs = Date.parse(current.lastSeenAt);
       const connected = demo || (matchingToken && Number.isFinite(lastSeenMs) &&
         lastSeenMs <= Date.now() && Date.now() - lastSeenMs < statusTtlMs);
