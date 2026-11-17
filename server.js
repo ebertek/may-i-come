@@ -1,12 +1,11 @@
 import http from 'node:http';
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { join, extname, resolve, sep } from 'node:path';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('./public/', import.meta.url));
-const dataFile = process.env.DATA_FILE || '/data/status.json';
 const demo = process.env.DEMO_MODE === 'true';
 const port = Number(process.env.PORT || 3000);
 const VALID_STATUSES = new Set(['Absolutely not', 'Ask first', 'Visitors welcome']);
@@ -62,29 +61,6 @@ const securityHeaders = {
   'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
 };
 
-async function loadStatus() {
-  try {
-    const loaded = JSON.parse(await readFile(dataFile, 'utf8'));
-    if (VALID_STATUSES.has(loaded.status) && Number.isFinite(Date.parse(loaded.updatedAt)) &&
-        Number.isFinite(Date.parse(loaded.lastSeenAt))) return loaded;
-  } catch (err) {
-    if (err.code !== 'ENOENT') console.error('Unable to load saved visitor status:', err.message);
-  }
-  return { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null };
-}
-
-async function saveStatus(state) {
-  await mkdir(resolve(dataFile, '..'), { recursive: true });
-  const temporary = `${dataFile}.${randomBytes(8).toString('hex')}.tmp`;
-  try {
-    await writeFile(temporary, JSON.stringify(state) + '\n', { encoding: 'utf8', mode: 0o600 });
-    await rename(temporary, dataFile);
-  } catch (error) {
-    try { const { unlink } = await import('node:fs/promises'); await unlink(temporary); } catch {}
-    throw error;
-  }
-}
-
 async function readBody(req, maxBytes = 4096) {
   let total = 0;
   const chunks = [];
@@ -99,10 +75,7 @@ async function readBody(req, maxBytes = 4096) {
 }
 
 async function main() {
-  let current = demo
-    ? { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null }
-    : await loadStatus();
-  let pendingSave = Promise.resolve();
+  let current = { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null, tokenHash: null };
 
   const server = http.createServer(async (req, res) => {
     for (const [key, value] of Object.entries(securityHeaders)) res.setHeader(key, value);
@@ -121,8 +94,13 @@ async function main() {
 
     if (req.method === 'GET' && pathname === '/api/status') {
       const example = demo ? DEMO_STATUSES[url.searchParams.get('demo')] : undefined;
+      const token = await getToken();
+      // A missing or rotated credential cannot reactivate an old approval.
+      const matchingToken = Boolean(token) &&
+        current.tokenHash === createHash('sha256').update(token).digest('hex');
+      if (!token) current = { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null, tokenHash: null };
       const lastSeenMs = Date.parse(current.lastSeenAt);
-      const connected = demo || (Boolean(await getToken()) && Number.isFinite(lastSeenMs) &&
+      const connected = demo || (matchingToken && Number.isFinite(lastSeenMs) &&
         lastSeenMs <= Date.now() && Date.now() - lastSeenMs < statusTtlMs);
       return sendJson(res, 200, {
         status: example || (connected ? current.status : DEFAULT_STATUS),
@@ -139,7 +117,10 @@ async function main() {
       }
       if (demo) return sendJson(res, 403, { error: 'Updates disabled in demo mode' });
       const token = await getToken();
-      if (!token) return sendJson(res, 503, { error: 'Updates unavailable' });
+      if (!token) {
+        current = { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null, tokenHash: null };
+        return sendJson(res, 503, { error: 'Updates unavailable' });
+      }
       if (!matchesToken(req.headers.authorization, token)) {
         return sendJson(res, 401, { error: 'Unauthorized' });
       }
@@ -155,22 +136,20 @@ async function main() {
       if (!payload || !VALID_STATUSES.has(payload.status)) {
         return sendJson(res, 400, { error: 'Unknown status' });
       }
-      // Serialize writes: concurrent updates must finish in arrival order.
       const now = new Date().toISOString();
+      const tokenHash = createHash('sha256').update(token).digest('hex');
       const nextState = {
         status: payload.status,
         // A heartbeat must not change the time of the last actual decision.
-        updatedAt: payload.status === current.status && current.updatedAt ? current.updatedAt : now,
+        updatedAt: payload.status === current.status && current.updatedAt &&
+          current.tokenHash === tokenHash ? current.updatedAt : now,
         lastSeenAt: now,
+        tokenHash,
       };
-      pendingSave = pendingSave.catch(() => {}).then(() => saveStatus(nextState).then(() => { current = nextState; }));
-      try {
-        await pendingSave;
-        return sendJson(res, 200, { ok: true, ...current });
-      } catch (error) {
-        console.error('Failed to persist status:', error.message);
-        return sendJson(res, 500, { error: 'Could not save status' });
-      }
+      current = nextState;
+      return sendJson(res, 200, {
+        ok: true, status: current.status, updatedAt: current.updatedAt, lastSeenAt: current.lastSeenAt,
+      });
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {

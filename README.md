@@ -8,7 +8,7 @@ An extremely official visitor-permission website. Friends and family get a simpl
 | `Ask first` | **ASK FIRST.** |
 | `Visitors welcome` | **COME ON OVER!** |
 
-The default is **ABSOLUTELY NOT.** Startup, an absent or unreadable update token, a missing saved-state file, an unreachable website API, a missing Home Assistant connection, or an expired heartbeat all result in **NO**. Neither a prior approval nor persisted state can override this safety fallback.
+The default is **ABSOLUTELY NOT.** Startup, an absent or unreadable update token, an unreachable website API, a missing Home Assistant connection, or an expired heartbeat all result in **NO**. Visitor state lives only in memory; container restarts always reset the verdict to **NO**.
 
 ## Architecture
 
@@ -20,7 +20,7 @@ Home Assistant rest_command (HTTPS + Bearer token)
        │ POST /api/ha-update
        ▼
 May I Come? (Node.js, no npm dependencies)
-       │ atomic save to /data/status.json (status, lastSeenAt)
+       │ in-memory status + last heartbeat (nothing written to disk)
        ▼
 GET /api/status  ← public read-only browser page
 ```
@@ -50,7 +50,7 @@ openssl rand -hex 32 > secrets/update-token.txt
 chmod 600 secrets/update-token.txt
 ```
 
-The Compose file bind-mounts the **directory** `./secrets` read-only, publishes **no direct host port**, keeps the saved status in an auto-created named volume, and expects Traefik to serve HTTPS. The directory may be absent at first: Docker Compose creates it, and the app starts healthy with a **NO** verdict until you add a valid `secrets/update-token.txt` file. The token can be added later without restarting Node.js. The production `ygg-other/compose.yaml` instead uses `/volume2/docker/visit/update-token.txt` from its host directory. Keep both locations private and outside the public Git repository.
+The Compose file bind-mounts the **directory** `./secrets` read-only, publishes **no direct host port**, stores visitor status only in memory (no `/data` volume), and expects Traefik to serve HTTPS. The directory may be absent at first: Docker Compose creates it, and the app starts healthy with a **NO** verdict until you add a valid `secrets/update-token.txt` file. The token can be added later without restarting Node.js. The production `ygg-other/compose.yaml` instead uses `/volume2/docker/visit/update-token.txt` from its host directory. Keep both locations private and outside the public Git repository.
 
 ```bash
 docker compose up -d --build
@@ -72,7 +72,7 @@ may_i_come_authorization_header: "Bearer PUT_THE_64_CHARACTER_HEX_TOKEN_HERE"
 
 Make sure the URL in the `rest_command` points to your actual HTTPS hostname. The visitor states are deliberately an exact, fixed set; rename them in both code and YAML if you want different names.
 
-Restart Home Assistant (or reload the relevant YAML integrations and automations) to load the helper and REST command. Use the **May I Come?** dropdown to set a visitor status. You can add the helper to a dashboard as an Entities card, or control it from an HA automation/voice assistant. On startup, every change, and **every minute**, HA posts the current status to the app. The app considers HA reachable only if the last heartbeat arrived **less than 180 seconds ago** (`STATUS_TTL_SECONDS`). After that, the public verdict automatically becomes **ABSOLUTELY NOT**, regardless of the previously saved value. The visitor page refreshes every 30 seconds while visible, and also switches to NO on browser fetch failures. Because this is a push integration, it cannot detect a failure instantly: a disconnected HA may take up to three minutes (plus at most 30 seconds of browser polling) to be reflected. The helper explicitly starts at `Absolutely not` following each HA restart.
+Restart Home Assistant (or reload the relevant YAML integrations and automations) to load the helper and REST command. Use the **May I Come?** dropdown to set a visitor status. You can add the helper to a dashboard as an Entities card, or control it from an HA automation/voice assistant. On startup, every change, and **every minute**, HA posts the current status to the app. The app considers HA reachable only if the last heartbeat arrived **less than 180 seconds ago** (`STATUS_TTL_SECONDS`). After that, the public verdict automatically becomes **ABSOLUTELY NOT**, regardless of the previously saved value. The visitor page refreshes every 30 seconds while visible, and also switches to NO on browser fetch failures. A service restart clears the status immediately; it remains NO until HA republishes, normally within one minute. Because this is a push integration, it cannot detect a failure instantly: a disconnected HA may take up to three minutes (plus at most 30 seconds of browser polling) to be reflected. The helper explicitly starts at `Absolutely not` following each HA restart.
 
 If Home Assistant can't reach the website, check the REST command logs. The previously published state may remain visible **only until the heartbeat deadline**; after that, it becomes NO. The page shows when the decision last changed (heartbeats don't reset that timestamp).
 
@@ -96,12 +96,12 @@ Once the test is finished, change the helper in HA so it publishes the actual in
 
 - Only the public read-only status endpoint and assets need to be accessible to guests.
 - Writes to `/api/ha-update` require a 32+ character Bearer token, checked with a timing-safe comparison. Missing, short, or unreadable tokens disable writes (`503`) without crashing the website.
-- The visitor verdict immediately becomes **NO** when the token is missing or unreadable, even if a previously saved **YES** has a still-fresh heartbeat. An updated token is reread on each API request so it can be provisioned at runtime.
+- The visitor verdict immediately becomes **NO** when the token is missing, unreadable, or rotated. The token is reread on each API request, so provisioning it later does not require an app restart. After token replacement, a new authenticated Home Assistant update is required to display anything other than **NO**.
 - The app requires HTTPS at the reverse proxy. The public endpoint does **not** expose anyone's address, HA hostname, HA API token, or schedule.
 - If the app has never received an update, it shows **ABSOLUTELY NOT**, as it also does when the last heartbeat is stale or the status endpoint cannot be reached.
 - Each HA update is a heartbeat; by default it expires after 180 seconds. Tune `STATUS_TTL_SECONDS` to adjust the offline detection threshold.
 - The HA helper starts at **Absolutely not** on HA restart, rather than restoring a previously permissive selection.
-- Changes are stored atomically in `/data/status.json` and survive app restarts. A failed write does not update the visible status.
+- Visitor status is held only in process memory. Every container restart starts from **NO** until Home Assistant sends another authenticated update. No `/data` volume or writable filesystem is needed.
 - There is no browser-based admin login. Configure the selection only in Home Assistant.
 - Don't expose Home Assistant publicly solely for this integration. Home Assistant just needs outbound access to the app's HTTPS URL.
 - In this deliberately small app, the public website displays a visit policy, which may convey household availability. Don't publish anything there that you wouldn't want anyone on the internet to see.
