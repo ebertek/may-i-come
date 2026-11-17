@@ -197,6 +197,10 @@ test('missing or unreadable update token keeps website healthy and verdict close
     const rotated = await (await fetch(app.origin + '/api/status')).json();
     assert.equal(rotated.status, 'Absolutely not');
     assert.equal(rotated.connected, false);
+    await writeFile(secretFile, token);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Absolutely not',
+      'rotating a token back must not revive an old approval');
+    await writeFile(secretFile, 'b'.repeat(64));
     assert.equal((await post(app.origin, { status: 'Ask first' })).status, 401);
     assert.equal((await post(app.origin, { status: 'Ask first' }, 'b'.repeat(64))).status, 200);
 
