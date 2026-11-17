@@ -18,8 +18,8 @@
     - action: rest_command.may_i_come_publish
       data:
         status: >-
-          {% set choice = states('input_select.may_i_come') %}
-          {{ choice if is_state('input_boolean.guest_mode', 'off')
-             and choice in ['Absolutely not', 'Ask first', 'Visitors welcome']
+          {{ states('input_select.may_i_come')
+             if is_state('input_boolean.guest_mode', 'off')
+             and states('input_select.may_i_come') in ['Absolutely not', 'Ask first', 'Visitors welcome']
              else 'Absolutely not' }}
   mode: restart
