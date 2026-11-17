@@ -15,7 +15,7 @@ input_select:
 
 rest_command:
   may_i_come_publish:
-    url: "https://visit.ebi.nu/api/ha-update"
+    url: "https://visit.example.com/api/ha-update"
     method: POST
     headers:
       Authorization: !secret may_i_come_authorization_header
