@@ -1,12 +1,13 @@
 # May I Come? 🏠
 
-An extremely official visitor-permission website. Friends and family get a simple verdict. Residents control it with a **Home Assistant input_select**; nobody on the public site can change the answer.
+An extremely official visitor-permission website. Friends and family get a simple verdict. Residents control it with a **Home Assistant input_select**; nobody on the public site can change the answer. Home Assistant's existing `input_boolean.guest_mode` forces **NO** while the guest Wi-Fi is occupied.
 
-| Home Assistant selection | Public verdict |
-|---|---|
-| `Absolutely not` | **ABSOLUTELY NOT.** |
-| `Ask first` | **ASK FIRST.** |
-| `Visitors welcome` | **COME ON OVER!** |
+| Guest mode | Home Assistant selection | Public verdict |
+|---|---|---|
+| Off | `Absolutely not` | **ABSOLUTELY NOT.** |
+| Off | `Ask first` | **ASK FIRST.** |
+| Off | `Visitors welcome` | **COME ON OVER!** |
+| On, unknown, or unavailable | Any | **ABSOLUTELY NOT.** |
 
 The default is **ABSOLUTELY NOT.** Startup, an absent or unreadable update token, an unreachable website API, a missing Home Assistant connection, or an expired heartbeat all result in **NO**. Visitor state lives only in memory; container restarts always reset the verdict to **NO**.
 
@@ -14,7 +15,9 @@ The default is **ABSOLUTELY NOT.** Startup, an absent or unreadable update token
 
 ```text
 Home Assistant helper (input_select.may_i_come)
-       │ state change, HA restart, or every-minute heartbeat
+    + existing guest Wi-Fi helper (input_boolean.guest_mode)
+       │ either helper changes, HA restart, or every-minute heartbeat
+       │ guest_mode != off → publish "Absolutely not"
        ▼
 Home Assistant rest_command (HTTPS + Bearer token)
        │ POST /api/ha-update
@@ -72,7 +75,9 @@ may_i_come_authorization_header: "Bearer PUT_THE_64_CHARACTER_HEX_TOKEN_HERE"
 
 Make sure the URL in the `rest_command` points to your actual HTTPS hostname. The visitor states are deliberately an exact, fixed set; rename them in both code and YAML if you want different names.
 
-Restart Home Assistant (or reload the relevant YAML integrations and automations) to load the helper and REST command. Use the **May I Come?** dropdown to set a visitor status. You can add the helper to a dashboard as an Entities card, or control it from an HA automation/voice assistant. On startup, every change, and **every minute**, HA posts the current status to the app. The app considers HA reachable only if the last heartbeat arrived **less than 180 seconds ago** (`STATUS_TTL_SECONDS`). After that, the public verdict automatically becomes **ABSOLUTELY NOT**, regardless of the previously saved value. The visitor page refreshes every 30 seconds while visible, and also switches to NO on browser fetch failures. A service restart clears the status immediately; it remains NO until HA republishes, normally within one minute. Because this is a push integration, it cannot detect a failure instantly: a disconnected HA may take up to three minutes (plus at most 30 seconds of browser polling) to be reflected. The helper explicitly starts at `Absolutely not` following each HA restart.
+The automation uses the existing `input_boolean.guest_mode`; **do not create a second guest-mode helper**. When it is `on`, `unknown`, or `unavailable`, the automation publishes **Absolutely not**, even if the manual `input_select.may_i_come` says visitors are welcome. Switching guest mode back `off` republishes the manual selection. The manual choice itself is left unchanged. If the manual helper is missing or has an invalid state, the published result is also **Absolutely not**.
+
+Restart Home Assistant (or reload the relevant YAML integrations and automations) to load the helper and REST command. Use the **May I Come?** dropdown to set a visitor status. You can add the helper to a dashboard as an Entities card, or control it from an HA automation/voice assistant. On startup, changes to **either helper**, and **every minute**, HA posts the effective (guest-mode-aware) status to the app. The app considers HA reachable only if the last heartbeat arrived **less than 180 seconds ago** (`STATUS_TTL_SECONDS`). After that, the public verdict automatically becomes **ABSOLUTELY NOT**, regardless of the previously saved value. The visitor page refreshes every 30 seconds while visible, and also switches to NO on browser fetch failures. A service restart clears the status immediately; it remains NO until HA republishes, normally within one minute. Because this is a push integration, it cannot detect a failure instantly: a disconnected HA may take up to three minutes (plus at most 30 seconds of browser polling) to be reflected. The helper explicitly starts at `Absolutely not` following each HA restart.
 
 If Home Assistant can't reach the website, check the REST command logs. The previously published state may remain visible **only until the heartbeat deadline**; after that, it becomes NO. The page shows when the decision last changed (heartbeats don't reset that timestamp).
 
@@ -90,7 +95,7 @@ curl -i --fail-with-body -X POST 'https://visit.ebi.nu/api/ha-update' \
 curl -s 'https://visit.ebi.nu/api/status'
 ```
 
-Once the test is finished, change the helper in HA so it publishes the actual intended state. Avoid putting the secret in public issue trackers or client-side code. Also note that a shell variable or curl command can be visible in shell history or process listings; prefer keeping the token in HA and the read-only server token file for routine use.
+Once the test is finished, change either helper in HA so it publishes the actual intended state. To test the occupancy override, select `Visitors welcome`, verify the guest mode is `off` and the page says **COME ON OVER!**, switch `guest_mode` `on` and verify **ABSOLUTELY NOT**, then switch it `off` again to restore the manual choice. Avoid putting the secret in public issue trackers or client-side code. Also note that a shell variable or curl command can be visible in shell history or process listings; prefer keeping the token in HA and the read-only server token file for routine use.
 
 ## 4. Security and privacy
 
@@ -100,7 +105,8 @@ Once the test is finished, change the helper in HA so it publishes the actual in
 - The app requires HTTPS at the reverse proxy. The public endpoint does **not** expose anyone's address, HA hostname, HA API token, or schedule.
 - If the app has never received an update, it shows **ABSOLUTELY NOT**, as it also does when the last heartbeat is stale or the status endpoint cannot be reached.
 - Each HA update is a heartbeat; by default it expires after 180 seconds. Tune `STATUS_TTL_SECONDS` to adjust the offline detection threshold.
-- The HA helper starts at **Absolutely not** on HA restart, rather than restoring a previously permissive selection.
+- The HA visitor-selection helper starts at **Absolutely not** on HA restart, rather than restoring a previously permissive selection.
+- While `input_boolean.guest_mode` is `on`, `unknown`, or `unavailable`, the automation always publishes **Absolutely not**. Home Assistant can republish the manual choice once guest mode is explicitly `off`.
 - Visitor status is held only in process memory. Every container restart starts from **NO** until Home Assistant sends another authenticated update. No `/data` volume or writable filesystem is needed.
 - There is no browser-based admin login. Configure the selection only in Home Assistant.
 - Don't expose Home Assistant publicly solely for this integration. Home Assistant just needs outbound access to the app's HTTPS URL.

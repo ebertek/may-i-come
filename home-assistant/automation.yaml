@@ -1,21 +1,25 @@
-# Add this entry to automations.yaml (or create via the UI in YAML mode).
-# It republishes every minute, after a Home Assistant restart, and whenever the helper changes.
-# If heartbeats stop for three minutes, the public app fails closed to NO.
+# Add this entry to automations.yaml (or create it in the UI using YAML mode).
+# The manual choice only permits visitors when guest_mode is explicitly OFF.
+# Any guest-mode ON/unknown/unavailable state fails closed to NO.
+# Publish on either helper changing, HA startup, and every minute.
 - id: may_i_come_publish_status
   alias: "May I Come? — Publish visitor status"
-  description: "Keep the public visitor portal in sync with Home Assistant."
+  description: "Publish visitor permission, rejecting new guests while guest Wi-Fi is occupied."
   triggers:
     - trigger: state
-      entity_id: input_select.may_i_come
+      entity_id:
+        - input_select.may_i_come
+        - input_boolean.guest_mode
     - trigger: homeassistant
       event: start
     - trigger: time_pattern
       minutes: "/1"
-  conditions:
-    - condition: template
-      value_template: "{{ states('input_select.may_i_come') in ['Absolutely not', 'Ask first', 'Visitors welcome'] }}"
   actions:
     - action: rest_command.may_i_come_publish
       data:
-        status: "{{ states('input_select.may_i_come') }}"
+        status: >-
+          {% set choice = states('input_select.may_i_come') %}
+          {{ choice if is_state('input_boolean.guest_mode', 'off')
+             and choice in ['Absolutely not', 'Ask first', 'Visitors welcome']
+             else 'Absolutely not' }}
   mode: restart
