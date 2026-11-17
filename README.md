@@ -35,6 +35,18 @@ The token in `secrets/update-token.txt` authenticates Home Assistant's updates. 
 
 The token is optional for starting the website: without a readable token, the page stays at **ABSOLUTELY NOT** and authenticated updates are unavailable. No persistent data volume is needed.
 
+### Use a published image instead
+
+Images are published to [GitHub Container Registry](https://github.com/ebertek/may-i-come/pkgs/container/may-i-come). To use a release instead of building locally, replace `build: .` in `compose.yaml` with:
+
+```yaml
+image: ghcr.io/ebertek/may-i-come:1.0.0
+```
+
+Use a version that has actually been released. Stable Git tags such as `v1.2.3` publish image tags `1.2.3`, `1.2`, `1`, and `latest`. Every change to `main` publishes `main` and a commit-specific `sha-…` tag. Pin an exact version for predictable deployments; use `main` to follow the latest development build.
+
+After selecting an image, run `docker compose pull` and `docker compose up -d`. If the package isn't publicly visible yet, its owner must make it public or grant registry read access.
+
 ## Connect Home Assistant
 
 Example files are provided in [`home-assistant/`](home-assistant/):
