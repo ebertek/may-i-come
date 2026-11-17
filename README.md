@@ -8,7 +8,7 @@ An extremely official visitor-permission website. Friends and family get a simpl
 | `Ask first` | **ASK FIRST.** |
 | `Visitors welcome` | **COME ON OVER!** |
 
-The default is **ABSOLUTELY NOT.** Startup, an unreachable website API, a missing Home Assistant connection, or an expired heartbeat all result in **NO**. Neither a prior approval nor persisted state can override this safety fallback.
+The default is **ABSOLUTELY NOT.** Startup, an absent or unreadable update token, a missing saved-state file, an unreachable website API, a missing Home Assistant connection, or an expired heartbeat all result in **NO**. Neither a prior approval nor persisted state can override this safety fallback.
 
 ## Architecture
 
@@ -46,11 +46,11 @@ Generate the token once (save it in a safe place):
 
 ```bash
 mkdir -p secrets
-openssl rand -hex 32 > secrets/may_i_come_update_token.txt
-chmod 600 secrets/may_i_come_update_token.txt
+openssl rand -hex 32 > secrets/update-token.txt
+chmod 600 secrets/update-token.txt
 ```
 
-The Compose file mounts the token as a Docker secret, publishes **no direct host port**, keeps the saved status in a named volume, and expects Traefik to serve HTTPS.
+The Compose file bind-mounts the **directory** `./secrets` read-only, publishes **no direct host port**, keeps the saved status in an auto-created named volume, and expects Traefik to serve HTTPS. The directory may be absent at first: Docker Compose creates it, and the app starts healthy with a **NO** verdict until you add a valid `secrets/update-token.txt` file. The token can be added later without restarting Node.js. The production `ygg-other/compose.yaml` instead uses `/volume2/docker/visit/update-token.txt` from its host directory. Keep both locations private and outside the public Git repository.
 
 ```bash
 docker compose up -d --build
@@ -81,7 +81,7 @@ If Home Assistant can't reach the website, check the REST command logs. The prev
 You can test from your workstation with the same secret:
 
 ```bash
-TOKEN="$(cat secrets/may_i_come_update_token.txt)"
+TOKEN="$(cat secrets/update-token.txt)"
 curl -i --fail-with-body -X POST 'https://visit.ebi.nu/api/ha-update' \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
@@ -90,12 +90,13 @@ curl -i --fail-with-body -X POST 'https://visit.ebi.nu/api/ha-update' \
 curl -s 'https://visit.ebi.nu/api/status'
 ```
 
-Once the test is finished, change the helper in HA so it publishes the actual intended state. Avoid putting the secret in public issue trackers or client-side code. Also note that a shell variable or curl command can be visible in shell history or process listings; prefer keeping the token in HA and the Docker secret for routine use.
+Once the test is finished, change the helper in HA so it publishes the actual intended state. Avoid putting the secret in public issue trackers or client-side code. Also note that a shell variable or curl command can be visible in shell history or process listings; prefer keeping the token in HA and the read-only server token file for routine use.
 
 ## 4. Security and privacy
 
 - Only the public read-only status endpoint and assets need to be accessible to guests.
-- Writes to `/api/ha-update` require a 32+ character Bearer token, checked with a timing-safe comparison.
+- Writes to `/api/ha-update` require a 32+ character Bearer token, checked with a timing-safe comparison. Missing, short, or unreadable tokens disable writes (`503`) without crashing the website.
+- The visitor verdict immediately becomes **NO** when the token is missing or unreadable, even if a previously saved **YES** has a still-fresh heartbeat. An updated token is reread on each API request so it can be provisioned at runtime.
 - The app requires HTTPS at the reverse proxy. The public endpoint does **not** expose anyone's address, HA hostname, HA API token, or schedule.
 - If the app has never received an update, it shows **ABSOLUTELY NOT**, as it also does when the last heartbeat is stale or the status endpoint cannot be reached.
 - Each HA update is a heartbeat; by default it expires after 180 seconds. Tune `STATUS_TTL_SECONDS` to adjust the offline detection threshold.
