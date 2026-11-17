@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, unlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import net from 'node:net';
@@ -164,6 +164,43 @@ test('legacy saved state without heartbeat fails closed', async () => {
     const state = await (await fetch(app.origin + '/api/status')).json();
     assert.equal(state.status, 'Absolutely not');
     assert.equal(state.connected, false);
+  } finally {
+    await stop(app);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+
+test('missing or unreadable update token keeps website healthy and verdict closed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'may-i-come-token-'));
+  const secretFile = join(dir, 'update-token.txt');
+  const dataFile = join(dir, 'missing-data-volume', 'status.json');
+  const app = await launch({ UPDATE_TOKEN_FILE: secretFile, DATA_FILE: dataFile });
+  try {
+    assert.equal((await fetch(app.origin + '/healthz')).status, 200);
+    const before = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(before.status, 'Absolutely not');
+    assert.equal(before.connected, false);
+    assert.equal((await post(app.origin, { status: 'Visitors welcome' })).status, 503);
+
+    await writeFile(secretFile, 'short-token');
+    assert.equal((await post(app.origin, { status: 'Visitors welcome' })).status, 503);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Absolutely not');
+
+    await writeFile(secretFile, token);
+    assert.equal((await post(app.origin, { status: 'Visitors welcome' })).status, 200);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Visitors welcome');
+
+    await unlink(secretFile);
+    const unavailable = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(unavailable.status, 'Absolutely not');
+    assert.equal(unavailable.connected, false);
+    assert.equal((await fetch(app.origin + '/healthz')).status, 200);
+    assert.equal((await post(app.origin, { status: 'Ask first' })).status, 503);
+
+    await writeFile(secretFile, token);
+    assert.equal((await post(app.origin, { status: 'Ask first' })).status, 200);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Ask first');
   } finally {
     await stop(app);
     await rm(dir, { recursive: true, force: true });

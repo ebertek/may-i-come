@@ -32,11 +32,14 @@ const types = {
 async function getToken() {
   if (demo) return null;
   const file = process.env.UPDATE_TOKEN_FILE;
-  const token = file ? (await readFile(file, 'utf8')).trim() : process.env.UPDATE_TOKEN;
-  if (!token || token.length < 32) {
-    throw new Error('Production requires UPDATE_TOKEN or UPDATE_TOKEN_FILE (minimum 32 characters).');
+  let token;
+  try {
+    token = file ? (await readFile(file, 'utf8')).trim() : process.env.UPDATE_TOKEN?.trim();
+  } catch {
+    // A missing or unreadable secret disables updates, not the visitor website.
+    return null;
   }
-  return token;
+  return token && token.length >= 32 ? token : null;
 }
 
 function matchesToken(provided, expected) {
@@ -96,7 +99,6 @@ async function readBody(req, maxBytes = 4096) {
 }
 
 async function main() {
-  const token = await getToken();
   let current = demo
     ? { status: DEFAULT_STATUS, updatedAt: null, lastSeenAt: null }
     : await loadStatus();
@@ -120,7 +122,7 @@ async function main() {
     if (req.method === 'GET' && pathname === '/api/status') {
       const example = demo ? DEMO_STATUSES[url.searchParams.get('demo')] : undefined;
       const lastSeenMs = Date.parse(current.lastSeenAt);
-      const connected = demo || (Number.isFinite(lastSeenMs) &&
+      const connected = demo || (Boolean(await getToken()) && Number.isFinite(lastSeenMs) &&
         lastSeenMs <= Date.now() && Date.now() - lastSeenMs < statusTtlMs);
       return sendJson(res, 200, {
         status: example || (connected ? current.status : DEFAULT_STATUS),
@@ -136,6 +138,8 @@ async function main() {
         return sendJson(res, 405, { error: 'Method not allowed' });
       }
       if (demo) return sendJson(res, 403, { error: 'Updates disabled in demo mode' });
+      const token = await getToken();
+      if (!token) return sendJson(res, 503, { error: 'Updates unavailable' });
       if (!matchesToken(req.headers.authorization, token)) {
         return sendJson(res, 401, { error: 'Unauthorized' });
       }

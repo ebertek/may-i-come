@@ -6,11 +6,10 @@ services:
     environment:
       PORT: "3000"
       STATUS_TTL_SECONDS: "180"
-      UPDATE_TOKEN_FILE: /run/secrets/may_i_come_update_token
+      UPDATE_TOKEN_FILE: /run/visit/update-token.txt
     volumes:
       - may-i-come-data:/data
-    secrets:
-      - may_i_come_update_token
+      - ./secrets:/run/visit:ro
     networks:
       - traefik
     labels:
@@ -24,10 +23,6 @@ services:
 
 volumes:
   may-i-come-data:
-
-secrets:
-  may_i_come_update_token:
-    file: ./secrets/may_i_come_update_token.txt
 
 networks:
   traefik:
