@@ -121,8 +121,3 @@ Run tests with `npm test`. There are no runtime npm packages to install.
 The exact visitor copy is in `public/app.js`; colors and layout are in `public/style.css`. The page never makes a real booking or sends a message, so it does not pretend that someone has approved a visit just because the **Check Again** button was clicked.
 
 Made with love, boundaries, and no surprise visits.
-
-## Screenshots
-
-- `docs/desktop-preview.png` — default **Absolutely not** verdict.
-- `docs/mobile-preview.png` — **Visitors welcome** verdict on a phone screen.
