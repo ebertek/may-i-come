@@ -32,6 +32,15 @@ Keep the repository independently usable. Do not couple examples or documentatio
 - `POST /api/ha-update` requires a valid Bearer token and one of the fixed statuses; use timing-safe equality. `GET /api/status` remains publicly readable but never includes credentials.
 - Demo controls belong only in demo mode. Do not accidentally expose write controls in production.
 
+## Container publishing
+
+- The GitHub Actions workflow `.github/workflows/docker-publish.yml` runs tests and validates the Compose example on pull requests, main pushes, and release tag pushes.
+- Pushes to `main` publish `ghcr.io/ebertek/may-i-come:main` and `sha-<shortsha>`. Do not treat `main` as an immutable release.
+- A stable Git tag `vMAJOR.MINOR.PATCH` publishes `MAJOR.MINOR.PATCH`, `MAJOR.MINOR`, `MAJOR`, and `latest`. Prereleases such as `v1.2.3-rc.1` must **not** update stable aliases or `latest`.
+- Release Git tags are the source of truth for container SemVer. Never invent a release number or overwrite an existing version tag; only publish from tested commits.
+- Include `org.opencontainers.image.source` so the GHCR package can link to this repository. Publishing uses the workflow's scoped `GITHUB_TOKEN`, not a personal access token.
+- Preserve `linux/amd64` and `linux/arm64` support. Before switching downstream deployments to GHCR, confirm the image exists and the deployment host can pull it; GHCR visibility may need to be configured separately.
+
 ## Working practices
 
 - Read the current source and tests before changing behavior; do not infer runtime state from a Git merge.
