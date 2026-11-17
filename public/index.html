@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f2e9" />
+  <meta name="description" content="An extremely official portal for checking if you can come visit." />
+  <title>May I Come? — The Visitor Department</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="stylesheet" href="/style.css" />
+  <script type="module" src="/app.js"></script>
+</head>
+<body data-status="no">
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+  <div class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="May I Come home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 40 40" fill="none"><path d="M7 35V16L20 5l13 11v19H7Z" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M16 35V22h8v13" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><circle cx="22.2" cy="29.3" r="1" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-words"><strong>may i come?</strong><small>THE VISITOR DEPARTMENT</small></span>
+      </a>
+      <div class="live-pill"><span class="live-dot" aria-hidden="true"></span> HOUSEHOLD STATUS <span class="pill-sparkle">✳</span></div>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="main-title">
+        <div class="intro-content">
+          <div class="eyebrow"><span class="eyebrow-line"></span> AN IMPORTANT PUBLIC SERVICE <span class="eyebrow-line"></span></div>
+          <h1 id="main-title">Thinking of<br /><em>popping by?</em></h1>
+          <p>Before you put your shoes on, consult the highly sophisticated visitor approval system below.</p>
+        </div>
+        <div class="intro-art" aria-hidden="true">
+          <svg viewBox="0 0 300 190" fill="none">
+            <path d="M17 154h265" stroke="#d3c5ae" stroke-width="2" stroke-linecap="round"/>
+            <path d="M63 154V78L150 17l87 61v76" stroke="#24201f" stroke-width="4" stroke-linejoin="round"/>
+            <path d="M77 154V84l73-51 73 51v70" fill="#fffaf1" stroke="#24201f" stroke-width="3" stroke-linejoin="round"/>
+            <rect x="125" y="95" width="50" height="59" rx="3" fill="#edcb92" stroke="#24201f" stroke-width="3"/>
+            <circle cx="163" cy="127" r="3" fill="#24201f"/>
+            <rect x="91" y="93" width="23" height="27" rx="2" fill="#cfdfcb" stroke="#24201f" stroke-width="2.5"/>
+            <path d="M102.5 93v27M91 106.5h23" stroke="#24201f" stroke-width="2"/>
+            <rect x="188" y="93" width="23" height="27" rx="2" fill="#cfdfcb" stroke="#24201f" stroke-width="2.5"/>
+            <path d="M199.5 93v27M188 106.5h23" stroke="#24201f" stroke-width="2"/>
+            <path d="M102 155v-17m-10 17v-27m-9 27v-14M198 155v-12m9 12v-26m9 26v-19" stroke="#8eaa86" stroke-width="3" stroke-linecap="round"/>
+            <path d="M243 59c9-13 17-11 23 1m-33-20 4-17m23 9 12-12" stroke="#e2a054" stroke-width="3" stroke-linecap="round"/>
+            <path d="m24 58 14 8m-4-28 16 14M20 80l20-2" stroke="#e2a054" stroke-width="3" stroke-linecap="round"/>
+            <path d="M18 170q25-12 46 0m171 0q22-12 49 0" stroke="#d3c5ae" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <span class="art-sticker">knock knock?<span>↘</span></span>
+        </div>
+      </section>
+
+      <div class="content-grid">
+        <section class="decision-panel" aria-labelledby="verdict-title">
+          <div class="decision-topline"><span><span class="tiny-square"></span> CURRENT DECISION</span><span>100% OFFICIAL*</span></div>
+          <div class="decision-body">
+            <div class="status-icon" aria-hidden="true">
+              <svg class="icon-no" viewBox="0 0 96 96" fill="none"><path d="M48 7 85 28v40L48 89 11 68V28L48 7Z" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><path d="m33 33 30 30M63 33 33 63" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></svg>
+              <svg class="icon-ask" viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="39" stroke="currentColor" stroke-width="5"/><path d="M35 35c0-10 8-17 18-16 9 1 15 7 15 16 0 15-17 15-17 27" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><circle cx="51" cy="75" r="3.7" fill="currentColor"/></svg>
+              <svg class="icon-yes" viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="39" stroke="currentColor" stroke-width="5"/><path d="m26 49 15 15 30-33" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg class="icon-unavailable icon-loading" viewBox="0 0 96 96" fill="none"><circle cx="48" cy="48" r="39" stroke="currentColor" stroke-width="5"/><path d="M48 27v27m0 13v2" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></svg>
+            </div>
+            <p class="decision-overline" id="decision-overline">YOUR REQUEST HAS BEEN REVIEWED</p>
+            <h2 id="verdict-title" aria-live="polite">ABSOLUTELY NOT.</h2>
+            <p class="decision-description" id="verdict-description">The household is closed for visitors. Please resist the urge to “just pop by.”</p>
+            <p class="decision-aside" id="decision-aside">Yes, this includes “but we’re already nearby.”</p>
+          </div>
+          <div class="decision-bottom">
+            <div class="status-chip"><span class="status-chip-dot"></span><span id="chip-label">Visitors not welcome</span></div>
+            <button class="refresh-button" id="refresh" type="button" title="Check household status again">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 8a8 8 0 0 0-14-2L4 8m0 0V3m0 5h5M4 16a8 8 0 0 0 14 2l2-2m0 0v5m0-5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              CHECK AGAIN
+            </button>
+          </div>
+        </section>
+
+        <aside class="side-panel" aria-label="Visitor instructions">
+          <section class="instruction-card">
+            <div class="index-label">01 / INSTRUCTIONS</div>
+            <h3>So, how does<br />this work?</h3>
+            <div class="steps">
+              <div class="step"><span class="step-number">01</span><p>Check the verdict <span>↑</span></p></div>
+              <div class="step"><span class="step-number">02</span><p>Respect the verdict <span>♥</span></p></div>
+              <div class="step"><span class="step-number">03</span><p>Never surprise-visit <span>✳</span></p></div>
+            </div>
+            <div class="side-note"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/></svg> This system is powered by real people with very real social batteries.</div>
+          </section>
+          <section class="tiny-card">
+            <span class="tiny-card-icon">☕</span>
+            <div><strong>A word about fika.</strong><p>Bringing some may increase approval odds. Terms and conditions apply.</p></div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="status-footer" aria-label="Status details">
+        <div class="source-badge"><span class="source-icon">⌂</span><div><strong>Set by the residents</strong><span>Updated directly from Home Assistant</span></div></div>
+        <div class="last-updated" id="last-updated">Home Assistant offline · NO visitors by default</div>
+      </section>
+
+      <section class="demo-panel" id="demo-panel" hidden aria-label="Preview different states">
+        <span>DEMO CONTROL PANEL</span>
+        <div class="demo-options" role="group" aria-label="Choose preview status">
+          <button type="button" data-demo="no">Absolutely not</button>
+          <button type="button" data-demo="ask">Ask first</button>
+          <button type="button" data-demo="yes">Visitors welcome</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><span>© THE VISITOR DEPARTMENT, 2026</span><span>*Decisions are final. Appeals may be submitted with pastries.</span></footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,10 @@
+.git
+.gitignore
+secrets
+node_modules
+*.zip
+*.png
+*.log
+test
+home-assistant
+README.md

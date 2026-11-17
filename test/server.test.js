@@ -1,0 +1,171 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import net from 'node:net';
+
+const token = 'a'.repeat(64);
+async function freePort() {
+  return await new Promise((resolve, reject) => {
+    const s = net.createServer();
+    s.listen(0, '127.0.0.1', () => {
+      const p = s.address().port;
+      s.close(() => resolve(p));
+    });
+    s.on('error', reject);
+  });
+}
+
+async function launch(extraEnv = {}) {
+  const port = await freePort();
+  const processHandle = spawn(process.execPath, ['server.js'], {
+    cwd: new URL('../', import.meta.url),
+    env: { ...process.env, PORT: String(port), UPDATE_TOKEN: token, ...extraEnv },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let processOutput = '';
+  processHandle.stderr.on('data', x => { processOutput += x.toString(); });
+  processHandle.stdout.on('data', x => { processOutput += x.toString(); });
+  const origin = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (processHandle.exitCode !== null) throw new Error(`App terminated unexpectedly: ${processOutput}`);
+    try { const response = await fetch(origin + '/healthz'); if (response.ok) return { origin, processHandle }; } catch {}
+    await new Promise(r => setTimeout(r, 40));
+  }
+  processHandle.kill();
+  throw new Error(`Server did not start: ${processOutput}`);
+}
+
+async function stop(instance) {
+  instance.processHandle.kill('SIGTERM');
+  await new Promise(resolve => {
+    if (instance.processHandle.exitCode !== null || instance.processHandle.signalCode !== null) resolve();
+    else instance.processHandle.once('exit', resolve);
+  });
+}
+
+async function post(origin, value, bearer = token, contentType = 'application/json') {
+  return fetch(origin + '/api/ha-update', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': contentType },
+    body: JSON.stringify(value),
+  });
+}
+
+test('production status is safe before first update, accepts only signed fixed choices, and persists', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'may-i-come-'));
+  const file = join(dir, 'status.json');
+  const instance = await launch({ DATA_FILE: file });
+  try {
+    const initial = await fetch(instance.origin + '/api/status');
+    assert.equal(initial.status, 200);
+    assert.equal(initial.headers.get('cache-control'), 'no-store');
+    assert.equal(initial.headers.get('access-control-allow-origin'), null);
+    assert.equal((await initial.json()).status, 'Absolutely not');
+
+    const denied = await post(instance.origin, { status: 'Visitors welcome' }, 'wrong');
+    assert.equal(denied.status, 401);
+    const invalid = await post(instance.origin, { status: 'On the way!' });
+    assert.equal(invalid.status, 400);
+    const wrongContentType = await post(instance.origin, { status: 'Ask first' }, token, 'text/plain');
+    assert.equal(wrongContentType.status, 415);
+
+    const approved = await post(instance.origin, { status: 'Ask first' });
+    assert.equal(approved.status, 200);
+    const state = await (await fetch(instance.origin + '/api/status')).json();
+    assert.equal(state.status, 'Ask first');
+    assert.ok(Date.parse(state.updatedAt) > 0);
+    assert.equal(state.connected, true);
+    assert.equal(JSON.parse(await readFile(file, 'utf8')).status, 'Ask first');
+
+    const traversal = await fetch(instance.origin + '/%2e%2e/server.js');
+    assert.equal(traversal.status, 404);
+    const javascript = await fetch(instance.origin + '/app.js');
+    assert.equal(javascript.status, 200);
+    assert.match(await javascript.text(), /Absolutely not/);
+  } finally {
+    await stop(instance);
+  }
+  const restart = await launch({ DATA_FILE: file });
+  try {
+    const data = await (await fetch(restart.origin + '/api/status')).json();
+    assert.equal(data.status, 'Ask first');
+    assert.equal(data.connected, true);
+  } finally {
+    await stop(restart);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('demo lets visitors preview without enabling updates', async () => {
+  const app = await launch({ DEMO_MODE: 'true', UPDATE_TOKEN: '' });
+  try {
+    const yes = await (await fetch(app.origin + '/api/status?demo=yes')).json();
+    assert.equal(yes.status, 'Visitors welcome');
+    assert.equal(yes.demo, true);
+    const update = await post(app.origin, { status: 'Visitors welcome' });
+    assert.equal(update.status, 403);
+  } finally {
+    await stop(app);
+  }
+});
+
+
+test('offline heartbeat expiry overrides permissive persisted status, including restart', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'may-i-come-expiry-'));
+  const file = join(dir, 'status.json');
+  let app = await launch({ DATA_FILE: file, STATUS_TTL_SECONDS: '0.3' });
+  try {
+    const first = await post(app.origin, { status: 'Visitors welcome' });
+    assert.equal(first.status, 200);
+    const fresh = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(fresh.status, 'Visitors welcome');
+    assert.equal(fresh.connected, true);
+    const decisionAt = fresh.updatedAt;
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const heartbeat = await post(app.origin, { status: 'Visitors welcome' });
+    assert.equal(heartbeat.status, 200);
+    const stillFresh = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(stillFresh.updatedAt, decisionAt, 'heartbeat should not count as a decision change');
+
+    await new Promise(resolve => setTimeout(resolve, 350));
+    const expired = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(expired.status, 'Absolutely not');
+    assert.equal(expired.connected, false);
+    assert.equal(expired.updatedAt, null);
+  } finally {
+    await stop(app);
+  }
+
+  app = await launch({ DATA_FILE: file, STATUS_TTL_SECONDS: '0.3' });
+  try {
+    const afterRestart = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(afterRestart.status, 'Absolutely not');
+    assert.equal(afterRestart.connected, false);
+    const recovered = await post(app.origin, { status: 'Ask first' });
+    assert.equal(recovered.status, 200);
+    assert.equal((await (await fetch(app.origin + '/api/status')).json()).status, 'Ask first');
+  } finally {
+    await stop(app);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('legacy saved state without heartbeat fails closed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'may-i-come-legacy-'));
+  const file = join(dir, 'status.json');
+  const { writeFile } = await import('node:fs/promises');
+  await writeFile(file, JSON.stringify({ status: 'Visitors welcome', updatedAt: new Date().toISOString() }));
+  const app = await launch({ DATA_FILE: file });
+  try {
+    const state = await (await fetch(app.origin + '/api/status')).json();
+    assert.equal(state.status, 'Absolutely not');
+    assert.equal(state.connected, false);
+  } finally {
+    await stop(app);
+    await rm(dir, { recursive: true, force: true });
+  }
+});

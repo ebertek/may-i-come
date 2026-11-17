@@ -1,0 +1,16 @@
+{
+  "name": "may-i-come",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A very serious household visitor policy portal controlled by Home Assistant.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "DEMO_MODE=true node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

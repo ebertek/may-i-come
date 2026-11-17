@@ -1,0 +1,23 @@
+# Merge these sections into your Home Assistant configuration.yaml.
+# If you already have input_select: or rest_command:, merge their CONTENTS;
+# do not define the top-level keys twice.
+
+input_select:
+  may_i_come:
+    name: "May I Come?"
+    options:
+      - "Absolutely not"
+      - "Ask first"
+      - "Visitors welcome"
+    initial: "Absolutely not"
+    icon: mdi:door-closed-lock
+
+rest_command:
+  may_i_come_publish:
+    url: "https://visit.ebi.nu/api/ha-update"
+    method: POST
+    headers:
+      Authorization: !secret may_i_come_authorization_header
+    content_type: "application/json"
+    payload: '{"status": "{{ status }}"}'
+    timeout: 10

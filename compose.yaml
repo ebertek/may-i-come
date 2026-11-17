@@ -1,0 +1,34 @@
+services:
+  may-i-come:
+    build: .
+    container_name: may-i-come
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      STATUS_TTL_SECONDS: "180"
+      UPDATE_TOKEN_FILE: /run/secrets/may_i_come_update_token
+    volumes:
+      - may-i-come-data:/data
+    secrets:
+      - may_i_come_update_token
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.may-i-come.rule=Host(`visit.ebi.nu`)
+      - traefik.http.routers.may-i-come.entrypoints=websecure
+      - traefik.http.routers.may-i-come.tls=true
+      - traefik.http.services.may-i-come.loadbalancer.server.port=3000
+      # Uncomment/adjust if Traefik requires an explicit cert resolver:
+      # - traefik.http.routers.may-i-come.tls.certresolver=your-resolver
+
+volumes:
+  may-i-come-data:
+
+secrets:
+  may_i_come_update_token:
+    file: ./secrets/may_i_come_update_token.txt
+
+networks:
+  traefik:
+    external: true # Replace with the name of your existing Traefik Docker network.

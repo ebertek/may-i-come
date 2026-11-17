@@ -1,0 +1,21 @@
+# Add this entry to automations.yaml (or create via the UI in YAML mode).
+# It republishes every minute, after a Home Assistant restart, and whenever the helper changes.
+# If heartbeats stop for three minutes, the public app fails closed to NO.
+- id: may_i_come_publish_status
+  alias: "May I Come? — Publish visitor status"
+  description: "Keep the public visitor portal in sync with Home Assistant."
+  triggers:
+    - trigger: state
+      entity_id: input_select.may_i_come
+    - trigger: homeassistant
+      event: start
+    - trigger: time_pattern
+      minutes: "/1"
+  conditions:
+    - condition: template
+      value_template: "{{ states('input_select.may_i_come') in ['Absolutely not', 'Ask first', 'Visitors welcome'] }}"
+  actions:
+    - action: rest_command.may_i_come_publish
+      data:
+        status: "{{ states('input_select.may_i_come') }}"
+  mode: restart
