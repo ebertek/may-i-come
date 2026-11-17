@@ -43,7 +43,7 @@ Demo mode adds a small control panel under the site so you can preview all three
 
 ## 2. Deploy behind Traefik
 
-The included `compose.yaml` uses `visit.ebi.nu` as an **example hostname** and a Docker network called `traefik`. Change these for your actual Traefik setup.
+The included `compose.yaml` uses the reserved documentation hostname `visit.example.com` and an example Docker network called `traefik`. Replace both with your actual reverse-proxy settings. For local testing without a proxy, run `npm run demo` and visit `http://localhost:3000`.
 
 Generate the token once (save it in a safe place):
 
@@ -53,32 +53,23 @@ openssl rand -hex 32 > secrets/update-token.txt
 chmod 600 secrets/update-token.txt
 ```
 
-The Compose file bind-mounts the **directory** `./secrets` read-only, publishes **no direct host port**, stores visitor status only in memory (no `/data` volume), and expects Traefik to serve HTTPS. The directory may be absent at first: Docker Compose creates it, and the app starts healthy with a **NO** verdict until you add a valid `secrets/update-token.txt` file. The token can be added later without restarting Node.js. The production `ygg-other/compose.yaml` instead uses `/volume2/docker/visit/update-token.txt` from its host directory. Keep both locations private and outside the public Git repository.
+The Compose file bind-mounts the **directory** `./secrets` read-only, publishes **no direct host port**, stores visitor status only in memory (no `/data` volume), and expects Traefik to serve HTTPS. The directory may be absent at first: Docker Compose creates it, and the app starts healthy with a **NO** verdict until you add a valid `secrets/update-token.txt` file. The token can be added later without restarting Node.js. Keep the directory private and outside the public Git repository. Ensure the container's `node` user can read the token file.
 
 ```bash
 docker compose up -d --build
 ```
 
-Point the DNS record or Cloudflare Tunnel route for `visit.ebi.nu` at the existing Traefik entrypoint. Follow your own Traefik TLS/certresolver conventions. Do not put a Cloudflare Access login in front of the *public* page if friends should visit it without accounts.
+Point the DNS record or tunnel route for your chosen hostname (for example, `visit.example.com`) at the reverse-proxy entrypoint. Follow your own Traefik TLS/certresolver conventions. Do not put a Cloudflare Access login in front of the *public* page if friends should visit it without accounts.
 
-If your existing Traefik network has another name, update `networks.traefik` (or specify `name: actual-network-name`). The YAML is an **example**: it is not patched into any existing Compose repository.
+If your existing Traefik network has another name, update `networks.traefik` (or specify `name: actual-network-name`). The YAML is a **standalone deployment example**, not a production-specific configuration.
 
 ## 3. Add Home Assistant helper and publisher
 
 Copy/merge `home-assistant/configuration.yaml` into Home Assistant's `configuration.yaml` and `home-assistant/automation.yaml` into `automations.yaml`. If you already have `input_select:` or `rest_command:` sections, merge their entries under the existing sections. Do not define the same helper twice if you already created `input_select.may_i_come` in the UI. For the existing `input_boolean.guest_mode`, no additional helper configuration is required.
 
-For the Pleiades deployment, Home Assistant stores its configuration under `/volume2/docker/hass/config`. Provision the optional update token in the host directory mounted into `visit` (the Node.js user needs read access):
-
-```bash
-sudo install -d -o root -g 1000 -m 0750 /volume2/docker/visit
-sudo sh -c 'umask 027; test -e /volume2/docker/visit/update-token.txt || openssl rand -hex 32 > /volume2/docker/visit/update-token.txt'
-sudo chown root:1000 /volume2/docker/visit/update-token.txt
-sudo chmod 0640 /volume2/docker/visit/update-token.txt
-```
-
 This is a token for the visitor website, **not** a Home Assistant API token. The site works without it (with **NO** and disabled writes), and picks it up when added without a container restart. Do not put the token in Git, Compose environment variables, or this README.
 
-In Home Assistant's `/volume2/docker/hass/config/secrets.yaml`, add a secret with the **entire Authorization header value**, using the **same** token as in `/volume2/docker/visit/update-token.txt`:
+In your Home Assistant `secrets.yaml`, add a secret with the **entire Authorization header value**, using the same token as the file mounted into the website container (in the standalone Compose example, `./secrets/update-token.txt`):
 
 ```yaml
 may_i_come_authorization_header: "Bearer PUT_THE_64_CHARACTER_HEX_TOKEN_HERE"
@@ -98,12 +89,12 @@ You can test from your workstation with the same secret:
 
 ```bash
 TOKEN="$(cat secrets/update-token.txt)"
-curl -i --fail-with-body -X POST 'https://visit.ebi.nu/api/ha-update' \
+curl -i --fail-with-body -X POST 'https://visit.example.com/api/ha-update' \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   --data '{"status":"Ask first"}'
 
-curl -s 'https://visit.ebi.nu/api/status'
+curl -s 'https://visit.example.com/api/status'
 ```
 
 Once the test is finished, change either helper in HA so it publishes the actual intended state. To test the occupancy override, select `Visitors welcome`, verify the guest mode is `off` and the page says **COME ON OVER!**, switch `guest_mode` `on` and verify **ABSOLUTELY NOT**, then switch it `off` again to restore the manual choice. Avoid putting the secret in public issue trackers or client-side code. Also note that a shell variable or curl command can be visible in shell history or process listings; prefer keeping the token in HA and the read-only server token file for routine use.

@@ -13,7 +13,7 @@ services:
       - traefik
     labels:
       - traefik.enable=true
-      - traefik.http.routers.may-i-come.rule=Host(`visit.ebi.nu`)
+      - traefik.http.routers.may-i-come.rule=Host(`visit.example.com`)
       - traefik.http.routers.may-i-come.entrypoints=websecure
       - traefik.http.routers.may-i-come.tls=true
       - traefik.http.services.may-i-come.loadbalancer.server.port=3000
