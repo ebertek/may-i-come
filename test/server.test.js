@@ -89,10 +89,10 @@ test('SIGTERM bounds shutdown while an HTTP request remains unfinished', async (
       socket.once('connect', resolve);
       socket.once('error', reject);
     });
-    socket.write('POST /api/ha-update HTTP/1.1\\r\\n' +
-      'Host: localhost\\r\\n' +
-      'Content-Type: application/json\\r\\n' +
-      'Content-Length: 1024\\r\\n\\r\\n' +
+    socket.write('POST /api/ha-update HTTP/1.1\r\n' +
+      'Host: localhost\r\n' +
+      'Content-Type: application/json\r\n' +
+      'Content-Length: 1024\r\n\r\n' +
       '{');
     // Give the server time to begin reading the incomplete request.
     await new Promise(resolve => setTimeout(resolve, 100));
