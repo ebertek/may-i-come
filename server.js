@@ -177,6 +177,32 @@ async function main() {
     }
   });
 
+  // Docker delivers SIGTERM to Node as PID 1. Handle it explicitly so a
+  // container without an init shim exits without waiting for SIGKILL.
+  let shuttingDown = false;
+  const shutdown = signal => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`Received ${signal}; shutting down HTTP server`);
+
+    // Let current requests finish, but never hang indefinitely on a slow client.
+    const deadline = setTimeout(() => {
+      console.warn('Shutdown deadline reached; closing active HTTP connections');
+      server.closeAllConnections();
+    }, 3000);
+    deadline.unref();
+
+    server.close(error => {
+      clearTimeout(deadline);
+      if (error) {
+        console.error('HTTP server shutdown failed:', error);
+        process.exitCode = 1;
+      }
+    });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
   server.listen(port, '0.0.0.0', () => {
     console.log(`May I Come? listening on port ${port} (${demo ? 'demo' : 'Home Assistant push'} mode)`);
   });
