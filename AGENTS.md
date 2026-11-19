@@ -31,6 +31,7 @@ Keep the repository independently usable. Do not couple examples or documentatio
 - The website's update token is **optional on container startup**. File-backed credentials are reread per request; missing/unreadable/too-short token disables updates without crashing the site. Credential loss/rotation must not reinstate an old permissive decision.
 - `POST /api/ha-update` requires a valid Bearer token and one of the fixed statuses; use timing-safe equality. `GET /api/status` remains publicly readable but never includes credentials.
 - Demo controls belong only in demo mode. Do not accidentally expose write controls in production.
+- Node runs directly as PID 1 in the container (exec-form Docker CMD). Preserve explicit SIGTERM/SIGINT handlers that stop the HTTP server cleanly. Bound shutdown for unfinished requests; do not depend on Docker Compose `init: true` or a short `stop_grace_period` to hide a hung process.
 
 ## Container publishing
 

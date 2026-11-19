@@ -46,6 +46,65 @@ async function stop(instance) {
   });
 }
 
+// Verify an orderly exit instead of just observing that the process died.
+async function expectGracefulStop(child, signal, maxMs = 2000) {
+  let timer;
+  const exited = new Promise(resolve => child.once('exit', (code, receivedSignal) => {
+    resolve({ code, receivedSignal });
+  }));
+  try {
+    assert.equal(child.kill(signal), true);
+    const result = await Promise.race([
+      exited,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Server ignored ${signal} for ${maxMs}ms`)), maxMs);
+      }),
+    ]);
+    assert.deepEqual(result, { code: 0, receivedSignal: null });
+  } finally {
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGKILL');
+      await exited;
+    }
+  }
+}
+
+test('SIGTERM and SIGINT shut down promptly without an init process', async () => {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    const app = await launch();
+    await (await fetch(app.origin + '/api/status')).json();
+    await expectGracefulStop(app.processHandle, signal);
+  }
+});
+
+test('SIGTERM bounds shutdown while an HTTP request remains unfinished', async () => {
+  const app = await launch();
+  const socket = net.createConnection({
+    host: '127.0.0.1', port: Number(new URL(app.origin).port),
+  });
+  socket.on('error', () => {}); // Shutdown deliberately drops this incomplete request.
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write('POST /api/ha-update HTTP/1.1\\r\\n' +
+      'Host: localhost\\r\\n' +
+      'Content-Type: application/json\\r\\n' +
+      'Content-Length: 1024\\r\\n\\r\\n' +
+      '{');
+    // Give the server time to begin reading the incomplete request.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await expectGracefulStop(app.processHandle, 'SIGTERM', 5000);
+  } finally {
+    socket.destroy();
+    if (app.processHandle.exitCode === null && app.processHandle.signalCode === null) {
+      app.processHandle.kill('SIGKILL');
+    }
+  }
+});
+
 async function post(origin, value, bearer = token, contentType = 'application/json') {
   return fetch(origin + '/api/ha-update', {
     method: 'POST',
